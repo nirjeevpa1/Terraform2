@@ -1,93 +1,82 @@
-#This Terraform Code Deploys Basic VPC Infrastructure"
 provider "aws" {
-    access_key = "${var.aws_access_key}"
-    secret_key = "${var.aws_secret_key}"
-    region = "${var.aws_region}"
+  profile = "default"
+  region = var.aws_region
 }
-resource "aws_vpc" "default" {
-    cidr_block = "${var.vpc_cidr}"
-    enable_dns_hostnames = true
-    tags = {
-        Name = "${var.vpc_name}"
-	Owner = "Sreeharsha Veerapalli"
-	environment = "${var.environment}"
+terraform {
+  required_providers {
+    aws={
+        version = "~>4.0"
     }
-}
-
-resource "aws_internet_gateway" "default" {
-    vpc_id = "${aws_vpc.default.id}"
-	tags = {
-        Name = "${var.IGW_name}"
-    }
-}
-
-resource "aws_subnet" "subnet1-public" {
-    vpc_id = "${aws_vpc.default.id}"
-    cidr_block = "${var.public_subnet1_cidr}"
-    availability_zone = "us-east-1a"
-
-    tags = {
-        Name = "${var.public_subnet1_name}"
-    }
-}
-
-resource "aws_subnet" "subnet2-public" {
-    vpc_id = "${aws_vpc.default.id}"
-    cidr_block = "${var.public_subnet2_cidr}"
-    availability_zone = "us-east-1b"
-
-    tags = {
-        Name = "${var.public_subnet2_name}"
-    }
-}
-
-resource "aws_subnet" "subnet3-public" {
-    vpc_id = "${aws_vpc.default.id}"
-    cidr_block = "${var.public_subnet3_cidr}"
-    availability_zone = "us-east-1c"
-
-    tags = {
-        Name = "${var.public_subnet3_name}"
-    }
-	
-}
-
-
-resource "aws_route_table" "terraform-public" {
-    vpc_id = "${aws_vpc.default.id}"
-
-    route {
-        cidr_block = "0.0.0.0/0"
-        gateway_id = "${aws_internet_gateway.default.id}"
-    }
-
-    tags = {
-        Name = "${var.Main_Routing_Table}"
-    }
-}
-
-resource "aws_route_table_association" "terraform-public" {
-    subnet_id = "${aws_subnet.subnet1-public.id}"
-    route_table_id = "${aws_route_table.terraform-public.id}"
-}
-
-resource "aws_security_group" "allow_all" {
-  name        = "allow_all"
-  description = "Allow all inbound traffic"
-  vpc_id      = "${aws_vpc.default.id}"
-
-  ingress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
   }
-
-  egress {
-    from_port       = 0
-    to_port         = 0
-    protocol        = "-1"
-    cidr_blocks     = ["0.0.0.0/0"]
-    }
+}
+terraform {
+  backend "s3" {
+    bucket = "bucketvk4"
+    key    = "terraform.tfstate "  //file.tfstate  //terraform.tfstate  
+    region = "ap-southeast-2"
+  } 
+}
+resource "aws_vpc" "vpc2" {
+    cidr_block = var.vpc_cidr
+   enable_dns_hostnames = true
+   tags = {
+     Name = var.vpc_name
+   }
+}
+resource "aws_subnet" "subnet1" {
+  vpc_id = aws_vpc.vpc2.id
+  cidr_block = var.public_cidr
+  availability_zone = var.availability_zone
+  tags = {
+    Name = var.subnet_name
+  }
 }
 
+resource "aws_internet_gateway" "IGW" {
+  vpc_id = aws_vpc.vpc2.id
+  tags={
+    Name = var.igw_name
+  }
+}
+resource "aws_route_table" "myrt" {
+    vpc_id = aws_vpc.vpc2.id
+    route  {
+        cidr_block = "0.0.0.0/0"
+        gateway_id = aws_internet_gateway.IGW.id
+    }
+}
+resource "aws_route_table_association" "RTA" {
+  subnet_id = aws_subnet.subnet1.id
+  route_table_id = aws_route_table.myrt.id
+}
+resource "aws_security_group" "SG" {
+  vpc_id = aws_vpc.vpc2.id
+  description = "allow traffic"
+  ingress {
+    from_port = "22"
+    to_port = "22"
+    cidr_blocks = ["0.0.0.0/0"]
+    protocol = "tcp"
+  }
+  ingress {
+    from_port = "80"
+    to_port = "80"
+    cidr_blocks = ["0.0.0.0/0"]
+    protocol = "tcp"
+  }
+  tags = {
+    Name = var.secgrp_name
+  }
+}
+resource "aws_instance" "server" {
+  ami = var.image_name
+  subnet_id = aws_subnet.subnet1.id
+  instance_type = var.instance_type
+  key_name = var.key_name
+  associate_public_ip_address = true
+  vpc_security_group_ids = [aws_security_group.SG.id]
+  tags = {
+    Name = var.instance_name
+  }
+  
+}
