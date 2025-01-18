@@ -1,0 +1,79 @@
+provider "aws" {
+    access_key = ""
+    secret_key = ""
+    region = "ap-southeast-2"
+}
+terraform {
+  required_providers {
+    aws ={
+        version = "~>4.0"
+        source = "hashicorp/aws"
+    }
+  }
+}
+resource "aws_vpc" "Tvpc" {
+    cidr_block = "14.0.0.0/16"
+    enable_dns_hostnames = true
+    tags = {
+      Name = "Test-vpc"
+    }
+}
+resource "aws_subnet" "Tsubnet" {
+    vpc_id = aws_vpc.Tvpc.id
+    cidr_block = "14.0.1.0/24"
+    availability_zone = "ap-southeast-2a"
+    tags = {
+        Name = "Test-subnet1"
+    }
+}
+resource "aws_internet_gateway" "TIGW" {
+    vpc_id = aws_vpc.Tvpc.id
+    tags = {
+      Name = "Test-IGW"
+    }
+}
+resource "aws_route_table" "TRT" {
+    vpc_id = aws_vpc.Tvpc.id
+    route {
+        cidr_block = "0.0.0.0/0"
+        gateway_id = aws_internet_gateway.TIGW.id
+    }
+}
+resource "aws_route_table_association" "RTA" {
+    subnet_id = aws_subnet.Tsubnet.id
+    route_table_id = aws_route_table.TRT.id
+}
+resource "aws_security_group" "TSG" {
+    vpc_id = aws_vpc.Tvpc.id
+    ingress {
+        cidr_blocks = ["0.0.0.0/0"]
+        from_port = "22"
+        to_port = "22"
+        protocol = "tcp"
+    }
+    ingress {
+        cidr_blocks = ["0.0.0.0/0"]
+        from_port = "80"
+        to_port = "80"
+        protocol = "tcp"
+    }
+}
+resource "aws_instance" "Tserver" {
+  ami = "ami-0fb76f0c92f96a9df"
+  instance_type = "t2.micro"
+  subnet_id = aws_subnet.Tsubnet.id
+  associate_public_ip_address = true
+  key_name = "kedari"
+  vpc_security_group_ids = [aws_security_group.TSG.id]
+  tags ={
+    Name = "Test-server"
+  }
+}
+
+
+
+
+
+
+
+
